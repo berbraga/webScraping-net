@@ -1,121 +1,120 @@
-# Implementation Plan: [FEATURE]
+# Implementation Plan: Busca de Comércios no Google Maps
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
+**Branch**: `001-maps-business-lookup` | **Date**: 2026-07-10 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
+**Input**: Feature specification from `/specs/001-maps-business-lookup/spec.md`
 
 **Note**: This template is filled in by the `/speckit-plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+Aplicação web em dois projetos: **frontend Next.js (JavaScript/React)** para
+iniciar buscas, acompanhar progresso, listar comércios e exportar CSV; **backend
+ASP.NET Core (C#)** expondo apenas API REST e persistência. Dados de busca e
+comércios ficam em **MongoDB (NoSQL)**. A coleta de Nome, Telefone, Site e
+Avaliação usa a **Google Places API (New)** atrás de uma abstração injetável,
+com job em background para percorrer itens, atualizar progresso e permitir
+cancelamento.
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
+**Language/Version**: C# / .NET 8 (backend); JavaScript (ES2022+) / Node 20+ (frontend)
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]
+**Primary Dependencies**:
+- Backend: ASP.NET Core Web API, MongoDB.Driver, Google Places API (HTTP)
+- Frontend: Next.js (App Router), React
 
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
+**Storage**: MongoDB (documentos `searches` e `businesses`)
 
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+**Testing**:
+- Backend: xUnit + FluentAssertions + Testcontainers (Mongo) ou Mongo em memória/fake
+- Frontend: Vitest + Testing Library; testes de contrato HTTP com mocks da API
 
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]
+**Target Platform**: Web local/dev (Windows/Linux); API + UI em processos separados
 
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
+**Project Type**: Web application (frontend + backend API)
 
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]
+**Performance Goals**:
+- Primeiros itens da listagem visíveis em até 2 minutos (SC-001)
+- Progresso da coleta atualizável via polling a cada ~2s
 
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]
+**Constraints**:
+- Backend restrito a API + integração com banco (sem UI no .NET)
+- Frontend não acessa Mongo nem Google diretamente — só a API
+- Sem autenticação de usuário na v1
+- Limite máximo configurável de comércios por busca
+- Uso responsável da Places API (quota/chave em configuração)
 
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]
-
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Scale/Scope**: Operador único local; dezenas a poucas centenas de comércios por execução
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- **Clareza**: API/módulos propostos têm nomes e responsabilidades óbvias?
-- **Simplicidade enxuta**: A solução é a mais simples que atende a spec?
-  Abstrações extras estão justificadas em Complexity Tracking?
-- **Testes automatizados**: Há estratégia de testes (unitário/integração)
-  cobrindo cada user story e cenário de aceitação?
-- **Responsabilidade única**: I/O (scraping/HTTP/arquivos) está separado
-  da lógica de domínio?
-- **Design testável**: Dependências externas são injetáveis/mockáveis?
-  Configuração fica em nível alto (não espalhada no código)?
+- **Clareza**: API com recursos `searches` / `businesses`; pastas Domain /
+  Application / Infrastructure com nomes óbvios — PASS
+- **Simplicidade enxuta**: Dois projetos (exigência do usuário); um único
+  projeto .NET (sem solution com N camadas); polling em vez de SignalR;
+  Places API em vez de browser scraping — PASS (ver Complexity Tracking)
+- **Testes automatizados**: xUnit no backend (domínio + API com fakes);
+  Vitest no frontend; contrato OpenAPI como referência — PASS
+- **Responsabilidade única**: Frontend = UI; API = orquestração; Infrastructure =
+  Mongo + Google Places; domínio sem I/O direto — PASS
+- **Design testável**: `IBusinessLookupSource`, `ISearchRepository` injetados;
+  config (connection string, API key, limites) em `appsettings` / env — PASS
+
+**Post-design re-check**: PASS — contratos e modelo alinhados; sem camadas extras.
 
 ## Project Structure
 
 ### Documentation (this feature)
 
 ```text
-specs/[###-feature]/
-├── plan.md              # This file (/speckit-plan command output)
-├── research.md          # Phase 0 output (/speckit-plan command)
-├── data-model.md        # Phase 1 output (/speckit-plan command)
-├── quickstart.md        # Phase 1 output (/speckit-plan command)
-├── contracts/           # Phase 1 output (/speckit-plan command)
-└── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
+specs/001-maps-business-lookup/
+├── plan.md
+├── research.md
+├── data-model.md
+├── quickstart.md
+├── contracts/
+│   └── rest-api.md
+└── tasks.md
 ```
 
 ### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
-
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
 backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
+├── WebScraping.Api/
+│   ├── Program.cs
+│   ├── Endpoints/
+│   ├── appsettings.json
+│   └── WebScraping.Api.csproj
+├── WebScraping.Application/
+├── WebScraping.Domain/
+├── WebScraping.Infrastructure/
 └── tests/
+    ├── WebScraping.Domain.Tests/
+    ├── WebScraping.Application.Tests/
+    └── WebScraping.Api.Tests/
 
 frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
+├── app/
+├── components/
+├── lib/
+├── public/
+├── package.json
 └── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
 ```
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+**Structure Decision**: Opção web frontend + backend. Backend em poucos projetos
+C# (Api / Application / Domain / Infrastructure) para DI e testes sem
+sobreengenharia. Frontend Next.js consome apenas a API REST.
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
-
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+| Dois projetos (FE Next + BE .NET) | Exigência explícita do usuário | Monólito único não atende a divisão pedida |
+| 4 projetos C# (Api/App/Domain/Infra) | Separar I/O (Mongo/Places) da lógica e permitir testes com fakes (constituição IV/V) | Um único .csproj mistura persistência/HTTP externo com domínio e dificulta mocks |
+| Worker em background na API | Coleta longa, progresso e cancelamento (FR-007, FR-011) sem estourar timeout HTTP | Request síncrono único bloqueia e impede cancelamento útil |
+| Abstração `IBusinessLookupSource` | Trocar/mockar Google Places nos testes | Chamada direta à Google nos controllers acopla e impede testes rápidos |
