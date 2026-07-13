@@ -82,6 +82,22 @@ public class SearchesEndpointTests : IClassFixture<ApiFactory>
 
         create.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
+
+    [Fact]
+    public async Task Post_with_maxResults_100_returns_matching_totalFound()
+    {
+        var create = await _client.PostAsJsonAsync("/api/searches", new
+        {
+            region = "Florianopolis",
+            query = "restaurantes",
+            maxResults = 100
+        });
+
+        create.StatusCode.Should().Be(HttpStatusCode.Created);
+        var summary = await create.Content.ReadFromJsonAsync<JsonElement>();
+        summary.GetProperty("maxResults").GetInt32().Should().Be(100);
+        summary.GetProperty("totalFound").GetInt32().Should().Be(100);
+    }
 }
 
 public class SearchProgressCancelTests : IClassFixture<ApiFactory>

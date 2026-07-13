@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebScraping.Application.Tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebScraping.Api.Tests", "tests\WebScraping.Api.Tests\WebScraping.Api.Tests.csproj", "{7B92F2B7-4448-4142-AD15-082C71E88864}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebScraping.Infrastructure.Tests", "tests\WebScraping.Infrastructure.Tests\WebScraping.Infrastructure.Tests.csproj", "{6258035B-B7F9-4BC9-9D8B-DC4FEE03463B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -56,10 +58,15 @@ Global
 		{7B92F2B7-4448-4142-AD15-082C71E88864}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7B92F2B7-4448-4142-AD15-082C71E88864}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7B92F2B7-4448-4142-AD15-082C71E88864}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6258035B-B7F9-4BC9-9D8B-DC4FEE03463B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6258035B-B7F9-4BC9-9D8B-DC4FEE03463B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6258035B-B7F9-4BC9-9D8B-DC4FEE03463B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6258035B-B7F9-4BC9-9D8B-DC4FEE03463B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{704F04E8-1328-4A72-BB2C-892860EF5FB1} = {B6DD394A-031E-4B0B-ABB0-A340787ECF8F}
 		{2E05511D-2186-4140-A123-C71D4A5FB6C0} = {B6DD394A-031E-4B0B-ABB0-A340787ECF8F}
 		{7B92F2B7-4448-4142-AD15-082C71E88864} = {B6DD394A-031E-4B0B-ABB0-A340787ECF8F}
+		{6258035B-B7F9-4BC9-9D8B-DC4FEE03463B} = {B6DD394A-031E-4B0B-ABB0-A340787ECF8F}
 	EndGlobalSection
 EndGlobal

@@ -8,6 +8,10 @@ namespace WebScraping.Infrastructure.Lookup;
 
 public sealed class GooglePlacesBusinessLookupSource : IBusinessLookupSource
 {
+    private const int GooglePageSizeLimit = 20;
+    private const string TextSearchPath = "https://places.googleapis.com/v1/places:searchText";
+    private const string FieldMask = "places.id,places.displayName,nextPageToken";
+
     private readonly HttpClient _httpClient;
     private readonly GooglePlacesOptions _options;
 
@@ -25,43 +29,80 @@ public sealed class GooglePlacesBusinessLookupSource : IBusinessLookupSource
     {
         EnsureApiKey();
 
-        var textQuery = $"{query} in {region}";
-        using var request = new HttpRequestMessage(HttpMethod.Post, "https://places.googleapis.com/v1/places:searchText");
-        request.Headers.TryAddWithoutValidation("X-Goog-Api-Key", _options.ApiKey);
-        request.Headers.TryAddWithoutValidation("X-Goog-FieldMask", "places.id,places.displayName");
-        request.Content = JsonContent.Create(new
+        if (maxResults <= 0)
         {
-            textQuery,
-            pageSize = Math.Clamp(maxResults, 1, 20)
-        });
-
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
-        await EnsureSuccessOrThrowAsync(response, "Text Search", cancellationToken);
-
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-
-        var results = new List<BusinessListing>();
-        if (!document.RootElement.TryGetProperty("places", out var places))
-        {
-            return results;
+            return Array.Empty<BusinessListing>();
         }
 
-        foreach (var place in places.EnumerateArray())
-        {
-            var id = place.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
-            var name = place.TryGetProperty("displayName", out var display)
-                && display.TryGetProperty("text", out var text)
-                ? text.GetString()
-                : null;
+        var textQuery = $"{query} in {region}";
+        var results = new List<BusinessListing>();
+        var seenIds = new HashSet<string>(StringComparer.Ordinal);
+        string? pageToken = null;
 
-            if (string.IsNullOrWhiteSpace(name))
+        while (results.Count < maxResults)
+        {
+            var pageSize = Math.Min(GooglePageSizeLimit, maxResults - results.Count);
+            using var request = new HttpRequestMessage(HttpMethod.Post, TextSearchPath);
+            request.Headers.TryAddWithoutValidation("X-Goog-Api-Key", _options.ApiKey);
+            request.Headers.TryAddWithoutValidation("X-Goog-FieldMask", FieldMask);
+
+            object body = pageToken is null
+                ? new { textQuery, pageSize }
+                : new { textQuery, pageSize, pageToken };
+
+            request.Content = JsonContent.Create(body);
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            await EnsureSuccessOrThrowAsync(response, "Text Search", cancellationToken);
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+
+            if (!document.RootElement.TryGetProperty("places", out var places)
+                || places.ValueKind != JsonValueKind.Array
+                || places.GetArrayLength() == 0)
             {
-                continue;
+                break;
             }
 
-            results.Add(new BusinessListing(name, id));
+            foreach (var place in places.EnumerateArray())
+            {
+                var id = place.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
+                var name = place.TryGetProperty("displayName", out var display)
+                    && display.TryGetProperty("text", out var text)
+                    ? text.GetString()
+                    : null;
+
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                var externalId = string.IsNullOrWhiteSpace(id) ? null : id.Trim();
+                if (externalId is not null && !seenIds.Add(externalId))
+                {
+                    continue;
+                }
+
+                results.Add(new BusinessListing(name.Trim(), externalId));
+                if (results.Count >= maxResults)
+                {
+                    break;
+                }
+            }
+
             if (results.Count >= maxResults)
+            {
+                break;
+            }
+
+            if (!document.RootElement.TryGetProperty("nextPageToken", out var tokenProp))
+            {
+                break;
+            }
+
+            pageToken = tokenProp.GetString();
+            if (string.IsNullOrWhiteSpace(pageToken))
             {
                 break;
             }

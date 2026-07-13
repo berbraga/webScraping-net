@@ -26,11 +26,35 @@ public class StartSearchTests
 
         var summary = await handler.HandleAsync(new StartSearchRequest("Centro", "padarias", 10));
 
-        summary.TotalFound.Should().Be(3);
+        summary.TotalFound.Should().Be(10);
+        summary.MaxResults.Should().Be(10);
         summary.Status.Should().Be("running");
         var items = await businesses.ListBySearchIdAsync(summary.Id, 0, 10);
-        items.Should().HaveCount(3);
+        items.Should().HaveCount(10);
         items.Select(x => x.Name).Should().Contain("Padaria Central");
+    }
+
+    [Fact]
+    public async Task StartSearch_preserves_requested_maxResults_and_totalFound()
+    {
+        var searches = new InMemorySearchRepository();
+        var businesses = new InMemoryBusinessRepository();
+        var queue = new InProcessSearchJobQueue();
+        var listings = Enumerable.Range(1, 100)
+            .Select(i => new WebScraping.Domain.Abstractions.BusinessListing($"Biz {i}", $"p-{i}"))
+            .ToList();
+        var lookup = FakeBusinessLookupSource.WithData(listings);
+        var handler = new StartSearchHandler(
+            searches,
+            businesses,
+            lookup,
+            queue,
+            MsOptions.Create(new SearchOptions { DefaultMaxResults = 50, AbsoluteMaxResults = 200 }));
+
+        var summary = await handler.HandleAsync(new StartSearchRequest("Centro", "padarias", 80));
+
+        summary.MaxResults.Should().Be(80);
+        summary.TotalFound.Should().Be(80);
     }
 
     [Fact]

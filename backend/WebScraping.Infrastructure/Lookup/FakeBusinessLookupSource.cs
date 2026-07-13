@@ -4,18 +4,14 @@ namespace WebScraping.Infrastructure.Lookup;
 
 public sealed class FakeBusinessLookupSource : IBusinessLookupSource
 {
+    private const int DefaultCatalogSize = 200;
+
     private readonly List<BusinessListing> _listings;
     private readonly Dictionary<string, BusinessDetails> _details;
 
     public FakeBusinessLookupSource()
     {
-        _listings =
-        [
-            new BusinessListing("Padaria Central", "place-1"),
-            new BusinessListing("Café da Esquina", "place-2"),
-            new BusinessListing("Mercado Bom Preço", "place-3")
-        ];
-
+        _listings = BuildDefaultCatalog();
         _details = new Dictionary<string, BusinessDetails>(StringComparer.OrdinalIgnoreCase)
         {
             ["place-1"] = new BusinessDetails("+55 11 3000-0001", "https://padariacentral.example", 4.5),
@@ -65,5 +61,22 @@ public sealed class FakeBusinessLookupSource : IBusinessLookupSource
         }
 
         return Task.FromResult(new BusinessDetails(null, null, null));
+    }
+
+    private static List<BusinessListing> BuildDefaultCatalog()
+    {
+        var listings = new List<BusinessListing>(DefaultCatalogSize)
+        {
+            new("Padaria Central", "place-1"),
+            new("Café da Esquina", "place-2"),
+            new("Mercado Bom Preço", "place-3")
+        };
+
+        for (var i = 4; i <= DefaultCatalogSize; i++)
+        {
+            listings.Add(new BusinessListing($"Comércio Fake {i}", $"place-{i}"));
+        }
+
+        return listings;
     }
 }
