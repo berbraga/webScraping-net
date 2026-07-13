@@ -26,12 +26,26 @@ public sealed record BusinessDetails(
     string? Website,
     double? Rating);
 
+public sealed record CoverageSlice(int Index, string EffectiveRegion, string EffectiveQuery, string Label);
+
+public interface ITextCoveragePlanner
+{
+    IReadOnlyList<CoverageSlice> Build(string region, string query);
+}
+
 public interface IBusinessLookupSource
 {
     Task<IReadOnlyList<BusinessListing>> SearchAsync(
         string region,
         string query,
         int maxResults,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<BusinessListing>> SearchAsync(
+        string region,
+        string query,
+        int maxResults,
+        int coverageSliceIndex,
         CancellationToken cancellationToken = default);
 
     Task<BusinessDetails> GetDetailsAsync(

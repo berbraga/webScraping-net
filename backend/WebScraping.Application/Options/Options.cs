@@ -6,6 +6,15 @@ public sealed class SearchOptions
 
     public int DefaultMaxResults { get; set; } = 50;
     public int AbsoluteMaxResults { get; set; } = 200;
+    public int ProviderPageCap { get; set; } = 60;
+    public string[] CoverageSectorSuffixes { get; set; } =
+    [
+        "centro",
+        "norte",
+        "sul",
+        "leste",
+        "oeste"
+    ];
 }
 
 public sealed class MongoOptions

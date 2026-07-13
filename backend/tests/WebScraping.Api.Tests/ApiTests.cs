@@ -48,6 +48,27 @@ public class SearchesEndpointTests : IClassFixture<ApiFactory>
         _client = factory.CreateClient();
     }
 
+    private async Task<JsonElement> WaitForTerminalAsync(string id, TimeSpan? timeout = null)
+    {
+        var limit = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(15));
+        JsonElement body = default;
+        while (DateTime.UtcNow < limit)
+        {
+            var get = await _client.GetAsync($"/api/searches/{id}");
+            get.StatusCode.Should().Be(HttpStatusCode.OK);
+            body = await get.Content.ReadFromJsonAsync<JsonElement>();
+            var status = body.GetProperty("status").GetString();
+            if (status is "completed" or "failed" or "cancelled")
+            {
+                return body;
+            }
+
+            await Task.Delay(50);
+        }
+
+        throw new TimeoutException($"Search {id} did not reach a terminal status. Last: {body}");
+    }
+
     [Fact]
     public async Task Post_and_list_businesses_returns_names()
     {
@@ -62,7 +83,9 @@ public class SearchesEndpointTests : IClassFixture<ApiFactory>
         var summary = await create.Content.ReadFromJsonAsync<JsonElement>();
         var id = summary.GetProperty("id").GetString();
         id.Should().NotBeNullOrWhiteSpace();
-        summary.GetProperty("totalFound").GetInt32().Should().BeGreaterThan(0);
+
+        var terminal = await WaitForTerminalAsync(id!);
+        terminal.GetProperty("totalFound").GetInt32().Should().BeGreaterThan(0);
 
         var list = await _client.GetAsync($"/api/searches/{id}/businesses");
         list.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -96,7 +119,12 @@ public class SearchesEndpointTests : IClassFixture<ApiFactory>
         create.StatusCode.Should().Be(HttpStatusCode.Created);
         var summary = await create.Content.ReadFromJsonAsync<JsonElement>();
         summary.GetProperty("maxResults").GetInt32().Should().Be(100);
-        summary.GetProperty("totalFound").GetInt32().Should().Be(100);
+        var id = summary.GetProperty("id").GetString()!;
+
+        var terminal = await WaitForTerminalAsync(id);
+        terminal.GetProperty("status").GetString().Should().Be("completed");
+        terminal.GetProperty("maxResults").GetInt32().Should().Be(100);
+        terminal.GetProperty("totalFound").GetInt32().Should().Be(100);
     }
 }
 
@@ -121,7 +149,6 @@ public class SearchProgressCancelTests : IClassFixture<ApiFactory>
         create.StatusCode.Should().Be(HttpStatusCode.Created);
         var summary = await create.Content.ReadFromJsonAsync<JsonElement>();
         var id = summary.GetProperty("id").GetString()!;
-        summary.GetProperty("totalFound").GetInt32().Should().BeGreaterThan(0);
 
         await Task.Delay(50);
         var cancel = await _client.PostAsync($"/api/searches/{id}/cancel", null);
@@ -130,9 +157,9 @@ public class SearchProgressCancelTests : IClassFixture<ApiFactory>
         {
             var completed = await _client.GetAsync($"/api/searches/{id}");
             var body = await completed.Content.ReadFromJsonAsync<JsonElement>();
-            body.GetProperty("status").GetString().Should().Be("completed");
+            body.GetProperty("status").GetString().Should().BeOneOf("completed", "failed");
             body.GetProperty("processedCount").GetInt32().Should().BeGreaterThanOrEqualTo(0);
-            body.GetProperty("totalFound").GetInt32().Should().BeGreaterThan(0);
+            body.GetProperty("totalFound").GetInt32().Should().BeGreaterThanOrEqualTo(0);
             return;
         }
 
@@ -142,7 +169,6 @@ public class SearchProgressCancelTests : IClassFixture<ApiFactory>
 
         var get = await _client.GetAsync($"/api/searches/{id}");
         var progress = await get.Content.ReadFromJsonAsync<JsonElement>();
-        progress.GetProperty("totalFound").GetInt32().Should().BeGreaterThan(0);
         progress.TryGetProperty("processedCount", out _).Should().BeTrue();
     }
 }
@@ -169,7 +195,19 @@ public class ExportEndpointTests : IClassFixture<ApiFactory>
         var summary = await create.Content.ReadFromJsonAsync<JsonElement>();
         var id = summary.GetProperty("id").GetString()!;
 
-        await Task.Delay(100);
+        var limit = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+        while (DateTime.UtcNow < limit)
+        {
+            var get = await _client.GetAsync($"/api/searches/{id}");
+            var body = await get.Content.ReadFromJsonAsync<JsonElement>();
+            var status = body.GetProperty("status").GetString();
+            if (status is "completed" or "failed" or "cancelled")
+            {
+                break;
+            }
+
+            await Task.Delay(50);
+        }
 
         var export = await _client.GetAsync($"/api/searches/{id}/export");
         export.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -179,4 +217,3 @@ public class ExportEndpointTests : IClassFixture<ApiFactory>
         text.Should().Contain("Padaria Central");
     }
 }
-

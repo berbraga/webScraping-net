@@ -4,6 +4,7 @@ namespace WebScraping.Infrastructure.Lookup;
 
 public sealed class FakeBusinessLookupSource : IBusinessLookupSource
 {
+    public const int ProviderPageCap = 60;
     private const int DefaultCatalogSize = 200;
 
     private readonly List<BusinessListing> _listings;
@@ -41,15 +42,31 @@ public sealed class FakeBusinessLookupSource : IBusinessLookupSource
         string region,
         string query,
         int maxResults,
+        CancellationToken cancellationToken = default) =>
+        SearchAsync(region, query, maxResults, coverageSliceIndex: 0, cancellationToken);
+
+    public Task<IReadOnlyList<BusinessListing>> SearchAsync(
+        string region,
+        string query,
+        int maxResults,
+        int coverageSliceIndex,
         CancellationToken cancellationToken = default)
     {
-        if (string.Equals(query, "__empty__", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(query, "__empty__", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(region, "__empty__", StringComparison.OrdinalIgnoreCase))
         {
             return Task.FromResult<IReadOnlyList<BusinessListing>>(Array.Empty<BusinessListing>());
         }
 
-        var take = Math.Max(maxResults, 0);
-        IReadOnlyList<BusinessListing> results = _listings.Take(take).ToList();
+        if (string.Equals(query, "__fail_slice_1__", StringComparison.OrdinalIgnoreCase)
+            && coverageSliceIndex >= 1)
+        {
+            throw new InvalidOperationException("Simulated provider failure on coverage slice.");
+        }
+
+        var take = Math.Min(Math.Max(maxResults, 0), ProviderPageCap);
+        var skip = Math.Max(coverageSliceIndex, 0) * ProviderPageCap;
+        IReadOnlyList<BusinessListing> results = _listings.Skip(skip).Take(take).ToList();
         return Task.FromResult(results);
     }
 

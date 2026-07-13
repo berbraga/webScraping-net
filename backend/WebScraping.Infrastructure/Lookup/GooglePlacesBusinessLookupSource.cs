@@ -25,6 +25,14 @@ public sealed class GooglePlacesBusinessLookupSource : IBusinessLookupSource
         string region,
         string query,
         int maxResults,
+        CancellationToken cancellationToken = default) =>
+        await SearchAsync(region, query, maxResults, coverageSliceIndex: 0, cancellationToken);
+
+    public async Task<IReadOnlyList<BusinessListing>> SearchAsync(
+        string region,
+        string query,
+        int maxResults,
+        int coverageSliceIndex,
         CancellationToken cancellationToken = default)
     {
         EnsureApiKey();
@@ -33,6 +41,9 @@ public sealed class GooglePlacesBusinessLookupSource : IBusinessLookupSource
         {
             return Array.Empty<BusinessListing>();
         }
+
+        // coverageSliceIndex is used by Fake/orchestrator; Google relies on region/query variants from the planner.
+        _ = coverageSliceIndex;
 
         var textQuery = $"{query} in {region}";
         var results = new List<BusinessListing>();

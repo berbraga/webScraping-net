@@ -34,6 +34,36 @@ public sealed class EnrichBusinessesHandler
             return;
         }
 
+        await EnrichPendingAsync(searchId, cancellationToken);
+
+        search = await _searches.GetByIdAsync(searchId, cancellationToken);
+        if (search is null || search.Status is SearchStatus.Cancelled or SearchStatus.Failed)
+        {
+            return;
+        }
+
+        search.Status = SearchStatus.Completed;
+        search.UpdatedAt = DateTime.UtcNow;
+        search.CompletedAt = search.UpdatedAt;
+        await _searches.UpdateAsync(search, cancellationToken);
+    }
+
+    /// <summary>
+    /// Enriches pending businesses without marking the search Completed.
+    /// </summary>
+    public async Task EnrichPendingAsync(string searchId, CancellationToken cancellationToken = default)
+    {
+        var search = await _searches.GetByIdAsync(searchId, cancellationToken);
+        if (search is null)
+        {
+            return;
+        }
+
+        if (search.Status is SearchStatus.Cancelled or SearchStatus.Failed or SearchStatus.Completed)
+        {
+            return;
+        }
+
         var pending = await _businesses.ListPendingBySearchIdAsync(searchId, cancellationToken);
 
         foreach (var business in pending)
@@ -44,6 +74,11 @@ public sealed class EnrichBusinessesHandler
             if (search is null || search.Status == SearchStatus.Cancelled)
             {
                 await _businesses.MarkRemainingPendingAsSkippedAsync(searchId, cancellationToken);
+                return;
+            }
+
+            if (search.Status is SearchStatus.Failed or SearchStatus.Completed)
+            {
                 return;
             }
 
@@ -81,17 +116,6 @@ public sealed class EnrichBusinessesHandler
             search.UpdatedAt = DateTime.UtcNow;
             await _searches.UpdateAsync(search, cancellationToken);
         }
-
-        search = await _searches.GetByIdAsync(searchId, cancellationToken);
-        if (search is null || search.Status == SearchStatus.Cancelled)
-        {
-            return;
-        }
-
-        search.Status = SearchStatus.Completed;
-        search.UpdatedAt = DateTime.UtcNow;
-        search.CompletedAt = search.UpdatedAt;
-        await _searches.UpdateAsync(search, cancellationToken);
     }
 }
 

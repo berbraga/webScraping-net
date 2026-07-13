@@ -29,8 +29,8 @@ public sealed class SearchEnrichmentWorker : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var enricher = scope.ServiceProvider.GetRequiredService<EnrichBusinessesHandler>();
-                await enricher.EnrichSearchAsync(searchId, stoppingToken);
+                var discover = scope.ServiceProvider.GetRequiredService<DiscoverSearchHandler>();
+                await discover.HandleAsync(searchId, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

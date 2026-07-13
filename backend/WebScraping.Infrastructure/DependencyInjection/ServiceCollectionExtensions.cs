@@ -25,7 +25,9 @@ public static class ServiceCollectionExtensions
         var apiKey = configuration["GooglePlaces:ApiKey"];
 
         services.AddSingleton<ISearchJobQueue, InProcessSearchJobQueue>();
+        services.AddSingleton<ITextCoveragePlanner, TextCoveragePlanner>();
         services.AddScoped<StartSearchHandler>();
+        services.AddScoped<DiscoverSearchHandler>();
         services.AddScoped<CancelSearchHandler>();
         services.AddScoped<EnrichBusinessesHandler>();
         services.AddScoped<ExportSearchCsvHandler>();
