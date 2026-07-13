@@ -32,3 +32,12 @@ public sealed class GooglePlacesOptions
     public string ApiKey { get; set; } = string.Empty;
     public bool UseFakeSource { get; set; }
 }
+
+public sealed class WebsiteCopyrightOptions
+{
+    public const string SectionName = "WebsiteCopyright";
+
+    public int TimeoutSeconds { get; set; } = 10;
+    public int MaxDegreeOfParallelism { get; set; } = 10;
+    public bool UseFakeLookup { get; set; }
+}

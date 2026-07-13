@@ -113,6 +113,7 @@ public sealed class InMemoryBusinessRepository : IBusinessRepository
         Name = business.Name,
         Phone = business.Phone,
         Website = business.Website,
+        SiteCreationYear = business.SiteCreationYear,
         Rating = business.Rating,
         DetailStatus = business.DetailStatus,
         DetailError = business.DetailError,

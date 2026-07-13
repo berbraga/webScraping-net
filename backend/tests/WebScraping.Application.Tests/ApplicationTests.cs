@@ -9,6 +9,25 @@ using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace WebScraping.Application.Tests;
 
+internal static class TestYearEnrichment
+{
+    public static WebsiteCopyrightOptions CopyrightOptions() => new()
+    {
+        TimeoutSeconds = 10,
+        MaxDegreeOfParallelism = 10
+    };
+
+    public static EnrichSiteCreationYearsHandler CreateYearEnricher(
+        InMemorySearchRepository searches,
+        InMemoryBusinessRepository businesses,
+        IWebsiteCopyrightYearLookup? lookup = null) =>
+        new(
+            searches,
+            businesses,
+            lookup ?? new FakeWebsiteCopyrightYearLookup(),
+            MsOptions.Create(CopyrightOptions()));
+}
+
 public class StartSearchTests
 {
     private static SearchOptions Options() => new()
@@ -29,9 +48,9 @@ public class StartSearchTests
         var opts = MsOptions.Create(options ?? Options());
         lookup ??= new FakeBusinessLookupSource();
         var planner = new TextCoveragePlanner(opts);
-        var enricher = new EnrichBusinessesHandler(searches, businesses, lookup);
+        var enricher = new EnrichBusinessesHandler(searches, businesses, lookup, TestYearEnrichment.CreateYearEnricher(searches, businesses));
         var start = new StartSearchHandler(searches, queue, opts);
-        var discover = new DiscoverSearchHandler(searches, businesses, lookup, planner, enricher, opts);
+        var discover = new DiscoverSearchHandler(searches, businesses, lookup, planner, enricher, TestYearEnrichment.CreateYearEnricher(searches, businesses), opts);
 
         var summary = await start.HandleAsync(request);
         await discover.HandleAsync(summary.Id);
@@ -53,7 +72,8 @@ public class StartSearchTests
             businesses,
             lookup,
             new TextCoveragePlanner(opts),
-            new EnrichBusinessesHandler(searches, businesses, lookup),
+            new EnrichBusinessesHandler(searches, businesses, lookup, TestYearEnrichment.CreateYearEnricher(searches, businesses)),
+            TestYearEnrichment.CreateYearEnricher(searches, businesses),
             opts);
 
         var summary = await start.HandleAsync(new StartSearchRequest("Centro", "padarias", 10));
@@ -109,13 +129,14 @@ public class DiscoverSearchHandlerTests
         var opts = MsOptions.Create(Options());
         lookup ??= new FakeBusinessLookupSource();
         var start = new StartSearchHandler(searches, queue, opts);
-        var enricher = new EnrichBusinessesHandler(searches, businesses, lookup);
+        var enricher = new EnrichBusinessesHandler(searches, businesses, lookup, TestYearEnrichment.CreateYearEnricher(searches, businesses));
         var discover = new DiscoverSearchHandler(
             searches,
             businesses,
             lookup,
             new TextCoveragePlanner(opts),
             enricher,
+            TestYearEnrichment.CreateYearEnricher(searches, businesses),
             opts);
 
         var summary = await start.HandleAsync(new StartSearchRequest(region, query, maxResults));
@@ -202,13 +223,14 @@ public class DiscoverSearchHandlerTests
         var opts = MsOptions.Create(Options());
         var inner = new FakeBusinessLookupSource();
         var lookup = new TrackingLookupSource(inner);
-        var enricher = new EnrichBusinessesHandler(searches, businesses, lookup);
+        var enricher = new EnrichBusinessesHandler(searches, businesses, lookup, TestYearEnrichment.CreateYearEnricher(searches, businesses));
         var discover = new DiscoverSearchHandler(
             searches,
             businesses,
             lookup,
             new TextCoveragePlanner(opts),
             enricher,
+            TestYearEnrichment.CreateYearEnricher(searches, businesses),
             opts);
         var start = new StartSearchHandler(searches, queue, opts);
 
@@ -279,7 +301,7 @@ public class DiscoverSearchHandlerTests
         var businesses = new InMemoryBusinessRepository();
         var opts = MsOptions.Create(Options());
         var lookup = new FakeBusinessLookupSource();
-        var enricher = new EnrichBusinessesHandler(searches, businesses, lookup);
+        var enricher = new EnrichBusinessesHandler(searches, businesses, lookup, TestYearEnrichment.CreateYearEnricher(searches, businesses));
         var trackingPlanner = new TextCoveragePlanner(opts);
         var discover = new DiscoverSearchHandler(
             searches,
@@ -287,6 +309,7 @@ public class DiscoverSearchHandlerTests
             lookup,
             trackingPlanner,
             enricher,
+            TestYearEnrichment.CreateYearEnricher(searches, businesses),
             opts);
 
         var search = Search.Create("Centro", "padarias", 120, DateTime.UtcNow);
@@ -319,7 +342,11 @@ public class EnrichBusinessesTests
         var b3 = Business.CreateDiscovered(search.Id, "Mercado", "place-3", now);
         await businesses.InsertManyAsync([b1, b2, b3]);
 
-        var enricher = new EnrichBusinessesHandler(searches, businesses, new FakeBusinessLookupSource());
+        var enricher = new EnrichBusinessesHandler(
+            searches,
+            businesses,
+            new FakeBusinessLookupSource(),
+            TestYearEnrichment.CreateYearEnricher(searches, businesses));
         await enricher.EnrichSearchAsync(search.Id);
 
         var items = await businesses.ListBySearchIdAsync(search.Id, 0, 10);
@@ -380,8 +407,137 @@ public class CsvExportTests
         };
 
         var csv = ExportSearchCsvHandler.BuildCsv(businesses);
-        csv.Should().StartWith("Nome,Telefone,Site,Avaliacao");
+        csv.Should().StartWith("Nome,Telefone,Site,Criação do site,Avaliacao");
         csv.Should().Contain("\"Padaria \"\"Central\"\", SP\"");
-        csv.Should().Contain(",,https://example.com,4.5");
+        csv.Should().Contain(",,https://example.com,,4.5");
+    }
+
+    [Fact]
+    public void BuildCsv_includes_site_creation_year()
+    {
+        var businesses = new[]
+        {
+            new Business
+            {
+                Name = "A",
+                Phone = "1",
+                Website = "https://a.example",
+                SiteCreationYear = 2016,
+                Rating = 4
+            },
+            new Business
+            {
+                Name = "B",
+                Website = "https://b.example",
+                SiteCreationYear = null
+            }
+        };
+
+        var csv = ExportSearchCsvHandler.BuildCsv(businesses);
+        csv.Should().Contain("Criação do site");
+        csv.Should().Contain("https://a.example,2016,4");
+        csv.Should().Contain("https://b.example,,");
+    }
+}
+
+public class SiteCreationYearEnrichmentTests
+{
+    [Fact]
+    public async Task Discover_sets_site_creation_year_from_fake_lookup()
+    {
+        var searches = new InMemorySearchRepository();
+        var businesses = new InMemoryBusinessRepository();
+        var queue = new InProcessSearchJobQueue();
+        var opts = MsOptions.Create(new SearchOptions
+        {
+            DefaultMaxResults = 50,
+            AbsoluteMaxResults = 200,
+            ProviderPageCap = 60
+        });
+        var lookup = new FakeBusinessLookupSource();
+        var yearLookup = new FakeWebsiteCopyrightYearLookup();
+        var yearEnricher = TestYearEnrichment.CreateYearEnricher(searches, businesses, yearLookup);
+        var enricher = new EnrichBusinessesHandler(searches, businesses, lookup, yearEnricher);
+        var discover = new DiscoverSearchHandler(
+            searches,
+            businesses,
+            lookup,
+            new TextCoveragePlanner(opts),
+            enricher,
+            yearEnricher,
+            opts);
+        var start = new StartSearchHandler(searches, queue, opts);
+
+        var summary = await start.HandleAsync(new StartSearchRequest("Centro", "padarias", 3));
+        await discover.HandleAsync(summary.Id);
+
+        var search = await searches.GetByIdAsync(summary.Id);
+        search!.Status.Should().Be(SearchStatus.Completed);
+        var items = await businesses.ListBySearchIdAsync(summary.Id, 0, 10);
+        items.Single(x => x.ExternalId == "place-1").SiteCreationYear.Should().Be(2016);
+        items.Single(x => x.ExternalId == "place-2").SiteCreationYear.Should().Be(2018);
+        items.Single(x => x.ExternalId == "place-3").SiteCreationYear.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Year_phase_reuses_same_website_url()
+    {
+        var searches = new InMemorySearchRepository();
+        var businesses = new InMemoryBusinessRepository();
+        var now = DateTime.UtcNow;
+        var search = Search.Create("Centro", "padarias", 10, now);
+        search.Status = SearchStatus.Running;
+        await searches.InsertAsync(search);
+
+        var a = Business.CreateDiscovered(search.Id, "A", "place-1", now);
+        a.Website = "https://shared.example";
+        a.DetailStatus = DetailStatus.Enriched;
+        var b = Business.CreateDiscovered(search.Id, "B", "place-x", now);
+        b.Website = "https://shared.example";
+        b.DetailStatus = DetailStatus.Enriched;
+        await businesses.InsertManyAsync([a, b]);
+
+        var yearLookup = new FakeWebsiteCopyrightYearLookup(new Dictionary<string, int?>
+        {
+            ["https://shared.example"] = 2011
+        });
+        var handler = TestYearEnrichment.CreateYearEnricher(searches, businesses, yearLookup);
+        await handler.HandleAsync(search.Id);
+
+        yearLookup.CallCount.Should().Be(1);
+        var items = await businesses.ListBySearchIdAsync(search.Id, 0, 10);
+        items.Should().OnlyContain(x => x.SiteCreationYear == 2011);
+    }
+
+    [Fact]
+    public async Task Year_lookup_failure_does_not_fail_places_or_abort_search()
+    {
+        var searches = new InMemorySearchRepository();
+        var businesses = new InMemoryBusinessRepository();
+        var now = DateTime.UtcNow;
+        var search = Search.Create("Centro", "padarias", 10, now);
+        search.Status = SearchStatus.Running;
+        search.FailedCount = 0;
+        await searches.InsertAsync(search);
+
+        var biz = Business.CreateDiscovered(search.Id, "A", "place-1", now);
+        biz.Website = "https://bad.example";
+        biz.DetailStatus = DetailStatus.Enriched;
+        biz.Phone = "1";
+        await businesses.InsertManyAsync([biz]);
+
+        var yearLookup = new FakeWebsiteCopyrightYearLookup();
+        yearLookup.Behavior = _ => throw new HttpRequestException("down");
+        var handler = TestYearEnrichment.CreateYearEnricher(searches, businesses, yearLookup);
+        await handler.HandleAsync(search.Id);
+
+        var updatedBiz = (await businesses.ListBySearchIdAsync(search.Id, 0, 10)).Single();
+        updatedBiz.SiteCreationYear.Should().BeNull();
+        updatedBiz.DetailStatus.Should().Be(DetailStatus.Enriched);
+        updatedBiz.Phone.Should().Be("1");
+
+        var updatedSearch = await searches.GetByIdAsync(search.Id);
+        updatedSearch!.FailedCount.Should().Be(0);
+        updatedSearch.Status.Should().Be(SearchStatus.Running);
     }
 }

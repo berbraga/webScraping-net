@@ -92,6 +92,30 @@ public class SearchesEndpointTests : IClassFixture<ApiFactory>
         var body = await list.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("total").GetInt32().Should().BeGreaterThan(0);
         body.GetProperty("items")[0].GetProperty("name").GetString().Should().NotBeNullOrWhiteSpace();
+        body.GetProperty("items")[0].TryGetProperty("siteCreationYear", out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Completed_search_includes_siteCreationYear_for_known_sites()
+    {
+        var create = await _client.PostAsJsonAsync("/api/searches", new
+        {
+            region = "Centro, São Paulo",
+            query = "padarias",
+            maxResults = 3
+        });
+
+        create.StatusCode.Should().Be(HttpStatusCode.Created);
+        var summary = await create.Content.ReadFromJsonAsync<JsonElement>();
+        var id = summary.GetProperty("id").GetString()!;
+        await WaitForTerminalAsync(id);
+
+        var list = await _client.GetAsync($"/api/searches/{id}/businesses");
+        var body = await list.Content.ReadFromJsonAsync<JsonElement>();
+        var items = body.GetProperty("items").EnumerateArray().ToList();
+        var withWebsite = items.First(i => i.TryGetProperty("website", out var w) && w.ValueKind == JsonValueKind.String);
+        withWebsite.TryGetProperty("siteCreationYear", out var year).Should().BeTrue();
+        year.ValueKind.Should().BeOneOf(JsonValueKind.Number, JsonValueKind.Null);
     }
 
     [Fact]
@@ -213,7 +237,7 @@ public class ExportEndpointTests : IClassFixture<ApiFactory>
         export.StatusCode.Should().Be(HttpStatusCode.OK);
         export.Content.Headers.ContentType!.MediaType.Should().Be("text/csv");
         var text = await export.Content.ReadAsStringAsync();
-        text.Should().Contain("Nome,Telefone,Site,Avaliacao");
+        text.Should().Contain("Nome,Telefone,Site,Criação do site,Avaliacao");
         text.Should().Contain("Padaria Central");
     }
 }

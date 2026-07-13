@@ -34,6 +34,7 @@ internal sealed class BusinessDocument
     public string Name { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? Website { get; set; }
+    public int? SiteCreationYear { get; set; }
     public double? Rating { get; set; }
     public string DetailStatus { get; set; } = string.Empty;
     public string? DetailError { get; set; }
@@ -156,6 +157,7 @@ public sealed class MongoBusinessRepository : IBusinessRepository
         Name = business.Name,
         Phone = business.Phone,
         Website = business.Website,
+        SiteCreationYear = business.SiteCreationYear,
         Rating = business.Rating,
         DetailStatus = business.DetailStatus.ToString(),
         DetailError = business.DetailError,
@@ -171,6 +173,7 @@ public sealed class MongoBusinessRepository : IBusinessRepository
         Name = doc.Name,
         Phone = doc.Phone,
         Website = doc.Website,
+        SiteCreationYear = doc.SiteCreationYear,
         Rating = doc.Rating,
         DetailStatus = Enum.Parse<DetailStatus>(doc.DetailStatus, true),
         DetailError = doc.DetailError,

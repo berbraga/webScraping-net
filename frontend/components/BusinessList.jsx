@@ -119,6 +119,7 @@ export default function BusinessList({
               <th>Nome</th>
               <th>Telefone</th>
               <th>Site</th>
+              <th>Criação do site</th>
               <th
                 className="th-sortable"
                 aria-sort={ariaSort}
@@ -150,6 +151,7 @@ export default function BusinessList({
                     <FieldValue value={item.website} />
                   )}
                 </td>
+                <td><FieldValue value={item.siteCreationYear} /></td>
                 <td><FieldValue value={item.rating} /></td>
               </tr>
             ))}

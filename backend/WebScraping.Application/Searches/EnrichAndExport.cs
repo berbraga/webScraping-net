@@ -10,15 +10,18 @@ public sealed class EnrichBusinessesHandler
     private readonly ISearchRepository _searches;
     private readonly IBusinessRepository _businesses;
     private readonly IBusinessLookupSource _lookup;
+    private readonly EnrichSiteCreationYearsHandler _yearEnricher;
 
     public EnrichBusinessesHandler(
         ISearchRepository searches,
         IBusinessRepository businesses,
-        IBusinessLookupSource lookup)
+        IBusinessLookupSource lookup,
+        EnrichSiteCreationYearsHandler yearEnricher)
     {
         _searches = searches;
         _businesses = businesses;
         _lookup = lookup;
+        _yearEnricher = yearEnricher;
     }
 
     public async Task EnrichSearchAsync(string searchId, CancellationToken cancellationToken = default)
@@ -36,6 +39,13 @@ public sealed class EnrichBusinessesHandler
 
         await EnrichPendingAsync(searchId, cancellationToken);
 
+        search = await _searches.GetByIdAsync(searchId, cancellationToken);
+        if (search is null || search.Status is SearchStatus.Cancelled or SearchStatus.Failed)
+        {
+            return;
+        }
+
+        await _yearEnricher.HandleAsync(searchId, cancellationToken);
         search = await _searches.GetByIdAsync(searchId, cancellationToken);
         if (search is null || search.Status is SearchStatus.Cancelled or SearchStatus.Failed)
         {
@@ -150,7 +160,7 @@ public sealed class ExportSearchCsvHandler
     public static string BuildCsv(IEnumerable<Business> businesses)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("Nome,Telefone,Site,Avaliacao");
+        builder.AppendLine("Nome,Telefone,Site,Criação do site,Avaliacao");
 
         foreach (var business in businesses)
         {
@@ -159,6 +169,8 @@ public sealed class ExportSearchCsvHandler
             builder.Append(Escape(business.Phone));
             builder.Append(',');
             builder.Append(Escape(business.Website));
+            builder.Append(',');
+            builder.Append(Escape(business.SiteCreationYear?.ToString(CultureInfo.InvariantCulture)));
             builder.Append(',');
             builder.Append(Escape(business.Rating?.ToString(CultureInfo.InvariantCulture)));
             builder.AppendLine();

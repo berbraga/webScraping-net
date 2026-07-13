@@ -29,7 +29,7 @@ function ratingCells() {
   const bodyRows = within(table).getAllByRole('row').slice(1);
   return bodyRows.map((row) => {
     const cells = within(row).getAllByRole('cell');
-    return cells[3].textContent;
+    return cells[4].textContent;
   });
 }
 
@@ -357,5 +357,38 @@ describe('BusinessList', () => {
     fireEvent.click(screen.getByRole('button', { name: /^próxima$/i }));
     fireEvent.click(screen.getByRole('button', { name: /^anterior$/i }));
     expect(listBusinesses).not.toHaveBeenCalled();
+  });
+
+  it('renders Criação do site column after Site with year or missing marker', () => {
+    render(
+      <BusinessList
+        items={[
+          {
+            id: '1',
+            name: 'Com Ano',
+            phone: null,
+            website: 'https://a.example',
+            siteCreationYear: 2016,
+            rating: null,
+          },
+          {
+            id: '2',
+            name: 'Sem Ano',
+            phone: null,
+            website: 'https://b.example',
+            siteCreationYear: null,
+            rating: null,
+          },
+        ]}
+        totalCount={2}
+        searchStatus="completed"
+      />,
+    );
+
+    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    const siteIdx = headers.findIndex((h) => h === 'Site');
+    const yearIdx = headers.findIndex((h) => h === 'Criação do site');
+    expect(yearIdx).toBe(siteIdx + 1);
+    expect(screen.getByText('2016')).toBeInTheDocument();
   });
 });

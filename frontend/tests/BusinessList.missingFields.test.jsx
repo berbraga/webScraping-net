@@ -14,6 +14,6 @@ describe('BusinessList missing fields', () => {
     );
 
     const markers = screen.getAllByTitle('Indisponível');
-    expect(markers).toHaveLength(3);
+    expect(markers).toHaveLength(4);
   });
 });

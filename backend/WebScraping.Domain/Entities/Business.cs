@@ -8,6 +8,7 @@ public sealed class Business
     public string Name { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? Website { get; set; }
+    public int? SiteCreationYear { get; set; }
     public double? Rating { get; set; }
     public DetailStatus DetailStatus { get; set; } = DetailStatus.Pending;
     public string? DetailError { get; set; }

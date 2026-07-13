@@ -58,3 +58,8 @@ public interface ISearchJobQueue
     ValueTask EnqueueAsync(string searchId, CancellationToken cancellationToken = default);
     IAsyncEnumerable<string> DequeueAllAsync(CancellationToken cancellationToken);
 }
+
+public interface IWebsiteCopyrightYearLookup
+{
+    Task<int?> GetYearAsync(string websiteUrl, CancellationToken cancellationToken = default);
+}

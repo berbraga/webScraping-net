@@ -71,6 +71,7 @@ public static class SearchesEndpoints
                     name = b.Name,
                     phone = b.Phone,
                     website = b.Website,
+                    siteCreationYear = b.SiteCreationYear,
                     rating = b.Rating,
                     detailStatus = b.DetailStatus.ToString().ToLowerInvariant(),
                     detailError = b.DetailError

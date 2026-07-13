@@ -19,9 +19,11 @@ public static class ServiceCollectionExtensions
         services.Configure<SearchOptions>(configuration.GetSection(SearchOptions.SectionName));
         services.Configure<MongoOptions>(configuration.GetSection(MongoOptions.SectionName));
         services.Configure<GooglePlacesOptions>(configuration.GetSection(GooglePlacesOptions.SectionName));
+        services.Configure<WebsiteCopyrightOptions>(configuration.GetSection(WebsiteCopyrightOptions.SectionName));
 
         var useTestingStores = configuration.GetValue("Testing:UseInMemoryStores", false);
         var useFakeSource = configuration.GetValue("GooglePlaces:UseFakeSource", false);
+        var useFakeCopyright = configuration.GetValue("WebsiteCopyright:UseFakeLookup", false);
         var apiKey = configuration["GooglePlaces:ApiKey"];
 
         services.AddSingleton<ISearchJobQueue, InProcessSearchJobQueue>();
@@ -30,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<DiscoverSearchHandler>();
         services.AddScoped<CancelSearchHandler>();
         services.AddScoped<EnrichBusinessesHandler>();
+        services.AddScoped<EnrichSiteCreationYearsHandler>();
         services.AddScoped<ExportSearchCsvHandler>();
 
         if (useTestingStores)
@@ -64,6 +67,15 @@ public static class ServiceCollectionExtensions
         else
         {
             services.AddHttpClient<IBusinessLookupSource, GooglePlacesBusinessLookupSource>();
+        }
+
+        if (useTestingStores || useFakeCopyright || useFakeSource || string.IsNullOrWhiteSpace(apiKey))
+        {
+            services.AddSingleton<IWebsiteCopyrightYearLookup>(_ => new FakeWebsiteCopyrightYearLookup());
+        }
+        else
+        {
+            services.AddHttpClient<IWebsiteCopyrightYearLookup, HttpWebsiteCopyrightYearLookup>();
         }
 
         services.AddHostedService<SearchEnrichmentWorker>();

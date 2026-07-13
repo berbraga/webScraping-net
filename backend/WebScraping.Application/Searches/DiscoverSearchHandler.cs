@@ -12,6 +12,7 @@ public sealed class DiscoverSearchHandler
     private readonly IBusinessLookupSource _lookup;
     private readonly ITextCoveragePlanner _planner;
     private readonly EnrichBusinessesHandler _enricher;
+    private readonly EnrichSiteCreationYearsHandler _yearEnricher;
     private readonly SearchOptions _options;
 
     public DiscoverSearchHandler(
@@ -20,6 +21,7 @@ public sealed class DiscoverSearchHandler
         IBusinessLookupSource lookup,
         ITextCoveragePlanner planner,
         EnrichBusinessesHandler enricher,
+        EnrichSiteCreationYearsHandler yearEnricher,
         IOptions<SearchOptions> options)
     {
         _searches = searches;
@@ -27,6 +29,7 @@ public sealed class DiscoverSearchHandler
         _lookup = lookup;
         _planner = planner;
         _enricher = enricher;
+        _yearEnricher = yearEnricher;
         _options = options.Value;
     }
 
@@ -138,6 +141,14 @@ public sealed class DiscoverSearchHandler
             }
 
             await _enricher.EnrichPendingAsync(searchId, cancellationToken);
+
+            search = await _searches.GetByIdAsync(searchId, cancellationToken);
+            if (search is null || search.Status is SearchStatus.Cancelled or SearchStatus.Failed)
+            {
+                return;
+            }
+
+            await _yearEnricher.HandleAsync(searchId, cancellationToken);
 
             search = await _searches.GetByIdAsync(searchId, cancellationToken);
             if (search is null || search.Status is SearchStatus.Cancelled or SearchStatus.Failed)
