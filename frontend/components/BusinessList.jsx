@@ -2,6 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { isRatingSortAllowed } from '../lib/homeView';
+import {
+  PAGE_SIZE,
+  clampPage,
+  formatResultsFooter,
+  shouldShowPagination,
+  slicePage,
+} from '../lib/paginateResults';
 import { nextRatingSortDirection, sortByRating } from '../lib/sortByRating';
 
 function FieldValue({ value }) {
@@ -29,20 +36,48 @@ export default function BusinessList({
   searchId,
 }) {
   const [ratingSort, setRatingSort] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const rows = items || [];
-  const total = totalCount ?? rows.length;
+  const listTotal = totalCount ?? rows.length;
   const sortAllowed = isRatingSortAllowed(searchStatus);
 
   useEffect(() => {
     setRatingSort(null);
+    setCurrentPage(1);
   }, [searchId]);
 
-  const displayRows = useMemo(() => {
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [items]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [ratingSort]);
+
+  const orderedRows = useMemo(() => {
     if (!ratingSort || !sortAllowed) {
       return rows;
     }
     return sortByRating(rows, ratingSort);
   }, [rows, ratingSort, sortAllowed]);
+
+  const paginationActive = shouldShowPagination(orderedRows.length);
+  const safePage = clampPage(currentPage, orderedRows.length, PAGE_SIZE);
+  const displayRows = paginationActive
+    ? slicePage(orderedRows, safePage, PAGE_SIZE)
+    : orderedRows;
+
+  const lastPage = Math.max(1, Math.ceil(orderedRows.length / PAGE_SIZE) || 1);
+  const canGoPrev = paginationActive && safePage > 1;
+  const canGoNext = paginationActive && safePage < lastPage;
+
+  const footerText = formatResultsFooter({
+    total: orderedRows.length,
+    page: safePage,
+    pageSize: PAGE_SIZE,
+    paginationActive,
+    listTotal,
+  });
 
   function handleRatingSortActivate() {
     if (!sortAllowed) {
@@ -63,7 +98,7 @@ export default function BusinessList({
       <div className="results-block">
         <p className="empty">{emptyMessage || 'Nenhum comércio encontrado.'}</p>
         {typeof totalCount === 'number' && (
-          <p className="results-footer">0 de {total} resultados</p>
+          <p className="results-footer">0 de {listTotal} resultados</p>
         )}
       </div>
     );
@@ -121,7 +156,27 @@ export default function BusinessList({
           </tbody>
         </table>
       </div>
-      <p className="results-footer">{rows.length} de {total} resultados</p>
+      {paginationActive && (
+        <div className="pagination-controls" role="navigation" aria-label="Paginação de resultados">
+          <button
+            type="button"
+            className="pagination-button"
+            disabled={!canGoPrev}
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+          >
+            Anterior
+          </button>
+          <button
+            type="button"
+            className="pagination-button"
+            disabled={!canGoNext}
+            onClick={() => setCurrentPage((page) => page + 1)}
+          >
+            Próxima
+          </button>
+        </div>
+      )}
+      <p className="results-footer">{footerText}</p>
     </div>
   );
 }

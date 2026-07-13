@@ -11,8 +11,12 @@ export function getSearch(id) {
   return apiRequest(`/api/searches/${id}`);
 }
 
-export function listBusinesses(id) {
-  return apiRequest(`/api/searches/${id}/businesses`);
+/** Product absolute max results; keep list load complete for client-side pagination. */
+export const LIST_BUSINESSES_TAKE = 200;
+
+export function listBusinesses(id, { take = LIST_BUSINESSES_TAKE } = {}) {
+  const params = new URLSearchParams({ take: String(take) });
+  return apiRequest(`/api/searches/${id}/businesses?${params}`);
 }
 
 export function cancelSearch(id) {

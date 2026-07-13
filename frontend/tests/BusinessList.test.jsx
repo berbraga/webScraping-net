@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import BusinessList from '../components/BusinessList';
 
 const ratedItems = [
@@ -13,6 +13,16 @@ const mixedItems = [
   { id: '2', name: 'Missing', phone: null, website: null, rating: null },
   { id: '3', name: 'B', phone: null, website: null, rating: 2 },
 ];
+
+function makeItems(count, namePrefix = 'Item') {
+  return Array.from({ length: count }, (_, i) => ({
+    id: String(i + 1),
+    name: `${namePrefix} ${i + 1}`,
+    phone: null,
+    website: null,
+    rating: (i % 5) + 1,
+  }));
+}
 
 function ratingCells() {
   const table = screen.getByRole('table');
@@ -193,5 +203,159 @@ describe('BusinessList', () => {
       key: 'Enter',
     });
     expect(ratingCells()).toEqual(['5', '3', '1']);
+  });
+
+  it('does not show pagination controls for 60 items and uses simple footer', () => {
+    const items = makeItems(60);
+    render(
+      <BusinessList
+        items={items}
+        totalCount={60}
+        searchStatus="completed"
+        searchId="s1"
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /^próxima$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^anterior$/i })).not.toBeInTheDocument();
+    expect(screen.getByText('60 de 60 resultados')).toBeInTheDocument();
+    expect(nameCells()).toHaveLength(60);
+  });
+
+  it('paginates 125 items with next and disabled controls at ends', () => {
+    const items = makeItems(125);
+    render(
+      <BusinessList
+        items={items}
+        totalCount={125}
+        searchStatus="completed"
+        searchId="s1"
+      />,
+    );
+
+    expect(nameCells()).toHaveLength(60);
+    expect(nameCells()[0]).toBe('Item 1');
+    expect(screen.getByText('Mostrando 1–60 de 125')).toBeInTheDocument();
+
+    const prev = screen.getByRole('button', { name: /^anterior$/i });
+    const next = screen.getByRole('button', { name: /^próxima$/i });
+    expect(prev).toBeDisabled();
+    expect(next).toBeEnabled();
+
+    fireEvent.click(next);
+    expect(nameCells()[0]).toBe('Item 61');
+    expect(screen.getByText('Mostrando 61–120 de 125')).toBeInTheDocument();
+
+    fireEvent.click(next);
+    expect(nameCells()).toHaveLength(5);
+    expect(nameCells()[0]).toBe('Item 121');
+    expect(screen.getByText('Mostrando 121–125 de 125')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^próxima$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^anterior$/i })).toBeEnabled();
+  });
+
+  it('returns to page 1 with Anterior', () => {
+    const items = makeItems(125);
+    render(
+      <BusinessList
+        items={items}
+        totalCount={125}
+        searchStatus="completed"
+        searchId="s1"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /^próxima$/i }));
+    expect(nameCells()[0]).toBe('Item 61');
+
+    fireEvent.click(screen.getByRole('button', { name: /^anterior$/i }));
+    expect(nameCells()[0]).toBe('Item 1');
+    expect(screen.getByRole('button', { name: /^anterior$/i })).toBeDisabled();
+  });
+
+  it('paginates only filtered matching names and hides controls at ≤60', () => {
+    const many = makeItems(70, 'Cafe');
+    const few = makeItems(25, 'Cafe');
+
+    const { rerender } = render(
+      <BusinessList
+        items={many}
+        totalCount={100}
+        searchStatus="completed"
+        searchId="s1"
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /^próxima$/i })).toBeInTheDocument();
+    expect(nameCells().every((name) => name.startsWith('Cafe'))).toBe(true);
+    expect(screen.getByText('Mostrando 1–60 de 70')).toBeInTheDocument();
+
+    rerender(
+      <BusinessList
+        items={few}
+        totalCount={100}
+        searchStatus="completed"
+        searchId="s1"
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /^próxima$/i })).not.toBeInTheDocument();
+    expect(nameCells()).toHaveLength(25);
+    expect(screen.getByText('25 de 100 resultados')).toBeInTheDocument();
+  });
+
+  it('keeps global sort order across pages and resets page on sort or searchId', () => {
+    const items = makeItems(65).map((item, index) => ({
+      ...item,
+      rating: 65 - index,
+    }));
+
+    const { rerender } = render(
+      <BusinessList
+        items={items}
+        totalCount={65}
+        searchStatus="completed"
+        searchId="s1"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /ordenar por avaliação/i }));
+    const page1Ratings = ratingCells();
+    fireEvent.click(screen.getByRole('button', { name: /^próxima$/i }));
+    const page2Ratings = ratingCells();
+    const concatenated = [...page1Ratings, ...page2Ratings].map(Number);
+    expect(concatenated).toEqual([...concatenated].sort((a, b) => b - a));
+
+    fireEvent.click(screen.getByRole('button', { name: /ordenar por avaliação/i }));
+    expect(screen.getByText(/Mostrando 1–60 de 65/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^próxima$/i }));
+    rerender(
+      <BusinessList
+        items={items}
+        totalCount={65}
+        searchStatus="completed"
+        searchId="s2"
+      />,
+    );
+    expect(screen.getByText(/Mostrando 1–60 de 65/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^anterior$/i })).toBeDisabled();
+  });
+
+  it('paginates without invoking listBusinesses (client-only)', () => {
+    const listBusinesses = vi.fn();
+    const items = makeItems(125);
+    render(
+      <BusinessList
+        items={items}
+        totalCount={125}
+        searchStatus="completed"
+        searchId="s1"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /^próxima$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^anterior$/i }));
+    expect(listBusinesses).not.toHaveBeenCalled();
   });
 });

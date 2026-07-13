@@ -298,6 +298,39 @@ button:disabled {
   font-size: 0.92rem;
 }
 
+.pagination-controls {
+  display: flex;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+  align-items: center;
+}
+
+.pagination-button {
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.pagination-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pagination-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagination-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .empty,
 .error,
 .hint {
