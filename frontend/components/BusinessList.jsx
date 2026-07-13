@@ -1,5 +1,9 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
+import { isRatingSortAllowed } from '../lib/homeView';
+import { nextRatingSortDirection, sortByRating } from '../lib/sortByRating';
+
 function FieldValue({ value }) {
   if (value === null || value === undefined || value === '') {
     return <span className="missing" title="Indisponível">✕</span>;
@@ -7,9 +11,52 @@ function FieldValue({ value }) {
   return <span>{String(value)}</span>;
 }
 
-export default function BusinessList({ items, totalCount, emptyMessage }) {
+function SortIcon({ direction }) {
+  if (direction === 'desc') {
+    return <span className="sort-icon" aria-hidden="true">↓</span>;
+  }
+  if (direction === 'asc') {
+    return <span className="sort-icon" aria-hidden="true">↑</span>;
+  }
+  return null;
+}
+
+export default function BusinessList({
+  items,
+  totalCount,
+  emptyMessage,
+  searchStatus,
+  searchId,
+}) {
+  const [ratingSort, setRatingSort] = useState(null);
   const rows = items || [];
   const total = totalCount ?? rows.length;
+  const sortAllowed = isRatingSortAllowed(searchStatus);
+
+  useEffect(() => {
+    setRatingSort(null);
+  }, [searchId]);
+
+  const displayRows = useMemo(() => {
+    if (!ratingSort || !sortAllowed) {
+      return rows;
+    }
+    return sortByRating(rows, ratingSort);
+  }, [rows, ratingSort, sortAllowed]);
+
+  function handleRatingSortActivate() {
+    if (!sortAllowed) {
+      return;
+    }
+    setRatingSort((current) => nextRatingSortDirection(current));
+  }
+
+  function handleRatingKeyDown(event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleRatingSortActivate();
+    }
+  }
 
   if (rows.length === 0) {
     return (
@@ -22,6 +69,12 @@ export default function BusinessList({ items, totalCount, emptyMessage }) {
     );
   }
 
+  const ariaSort = ratingSort === 'desc'
+    ? 'descending'
+    : ratingSort === 'asc'
+      ? 'ascending'
+      : 'none';
+
   return (
     <div className="results-block">
       <div className="table-wrap">
@@ -31,11 +84,25 @@ export default function BusinessList({ items, totalCount, emptyMessage }) {
               <th>Nome</th>
               <th>Telefone</th>
               <th>Site</th>
-              <th>Avaliação</th>
+              <th
+                className="th-sortable"
+                aria-sort={ariaSort}
+              >
+                <button
+                  type="button"
+                  className="th-sort-button"
+                  onClick={handleRatingSortActivate}
+                  onKeyDown={handleRatingKeyDown}
+                  aria-label="Ordenar por avaliação"
+                >
+                  Avaliação
+                  <SortIcon direction={sortAllowed ? ratingSort : null} />
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((item) => (
+            {displayRows.map((item) => (
               <tr key={item.id}>
                 <td className="cell-name">{item.name}</td>
                 <td><FieldValue value={item.phone} /></td>

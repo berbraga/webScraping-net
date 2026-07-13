@@ -7,7 +7,7 @@ import SearchProgress from '../components/SearchProgress';
 import ExportButton from '../components/ExportButton';
 import NameFilter from '../components/NameFilter';
 import { cancelSearch, createSearch, getSearch, listBusinesses } from '../lib/searchesApi';
-import { filterByName, isProcessingStatus } from '../lib/homeView';
+import { filterByName, isProcessingStatus, shouldShowResultsArea } from '../lib/homeView';
 
 export default function HomePage() {
   const [search, setSearch] = useState(null);
@@ -18,7 +18,10 @@ export default function HomePage() {
   const [cancelling, setCancelling] = useState(false);
 
   const processing = loading || isProcessingStatus(search?.status);
-  const showResultsChrome = Boolean(search) && !processing;
+  const showResultsArea = shouldShowResultsArea({
+    status: search?.status,
+    loading,
+  });
   const filteredBusinesses = useMemo(
     () => filterByName(businesses, nameFilter),
     [businesses, nameFilter],
@@ -106,7 +109,7 @@ export default function HomePage() {
         />
       )}
 
-      {showResultsChrome && (
+      {showResultsArea && (
         <>
           <div className="results-toolbar">
             <ExportButton searchId={search?.id} disabled={!canExport} />
@@ -116,6 +119,8 @@ export default function HomePage() {
             items={filteredBusinesses}
             totalCount={businesses.length}
             emptyMessage={emptyMessage}
+            searchStatus={search?.status}
+            searchId={search?.id}
           />
         </>
       )}

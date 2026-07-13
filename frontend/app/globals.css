@@ -232,6 +232,35 @@ button:disabled {
   color: var(--ink);
 }
 
+.th-sortable {
+  white-space: nowrap;
+}
+
+.th-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+}
+
+.th-sort-button:focus-visible {
+  outline: 2px solid var(--accent, #2f6f4e);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.sort-icon {
+  font-size: 0.85em;
+  line-height: 1;
+}
+
 .business-list tbody tr:last-child td {
   border-bottom: none;
 }
